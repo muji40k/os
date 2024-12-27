@@ -1,0 +1,17 @@
+void putname(struct filename *name)
+{
+	if (IS_ERR(name))
+		return;
+
+	BUG_ON(name->refcnt <= 0);
+
+	if (--name->refcnt > 0)
+		return;
+
+	if (name->name != name->iname) {
+		__putname(name->name);
+		kfree(name);
+	} else
+		__putname(name);
+}
+EXPORT_SYMBOL(putname);

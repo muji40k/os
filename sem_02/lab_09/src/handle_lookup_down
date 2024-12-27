@@ -1,0 +1,7 @@
+static int handle_lookup_down(struct nameidata *nd)
+{
+	if (!(nd->flags & LOOKUP_RCU))
+		dget(nd->path.dentry);
+	nd->next_seq = nd->seq;
+	return PTR_ERR(step_into(nd, WALK_NOFOLLOW, nd->path.dentry));
+}

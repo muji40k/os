@@ -1,0 +1,7 @@
+/*
+ * Return the total number of open files in the system
+ */
+static long get_nr_files(void)
+{
+	return percpu_counter_read_positive(&nr_files);
+}

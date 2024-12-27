@@ -1,0 +1,22 @@
+static int do_tmpfile(struct nameidata *nd, unsigned flags,
+		const struct open_flags *op,
+		struct file *file)
+{
+	struct path path;
+	int error = path_lookupat(nd, flags | LOOKUP_DIRECTORY, &path);
+
+	if (unlikely(error))
+		return error;
+	error = mnt_want_write(path.mnt);
+	if (unlikely(error))
+		goto out;
+	error = vfs_tmpfile(mnt_idmap(path.mnt), &path, file, op->mode);
+	if (error)
+		goto out2;
+	audit_inode(nd->name, file->f_path.dentry, 0);
+out2:
+	mnt_drop_write(path.mnt);
+out:
+	path_put(&path);
+	return error;
+}

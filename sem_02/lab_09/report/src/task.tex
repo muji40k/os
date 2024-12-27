@@ -1,0 +1,524 @@
+\leftsection{Используемые структуры}
+
+\begin{lstlisting}[language=c, caption={struct open\_how}]
+struct open_how {
+	__u64 flags;
+	__u64 mode;
+	__u64 resolve;
+};
+\end{lstlisting}
+
+\begin{lstlisting}[language=c, caption={struct open\_flags}]
+struct open_flags {
+	int open_flag;
+	umode_t mode;
+	int acc_mode;
+	int intent;
+	int lookup_flags;
+};
+\end{lstlisting}
+
+\begin{lstlisting}[language=c, caption={struct filename}]
+struct filename {
+	const char		*name;	/* pointer to actual string */
+	const __user char	*uptr;	/* original userland pointer */
+	int			refcnt;
+	struct audit_names	*aname;
+	const char		iname[];
+};
+\end{lstlisting}
+
+\begin{lstlisting}[language=c, caption={struct audit\_names}]
+struct audit_names {
+	struct list_head	list;		/* audit_context->names_list */
+
+	struct filename		*name;
+	int			name_len;	/* number of chars to log */
+	bool			hidden;		/* don't log this record */
+
+	unsigned long		ino;
+	dev_t			dev;
+	umode_t			mode;
+	kuid_t			uid;
+	kgid_t			gid;
+	dev_t			rdev;
+	u32			osid;
+	struct audit_cap_data	fcap;
+	unsigned int		fcap_ver;
+	unsigned char		type;		/* record type */
+	/*
+	 * This was an allocated audit_names and not from the array of
+	 * names allocated in the task audit context.  Thus this name
+	 * should be freed on syscall exit.
+	 */
+	bool			should_free;
+};
+\end{lstlisting}
+
+\begin{lstlisting}[language=c, caption={struct files\_struct}]
+struct files_struct {
+  /*
+   * read mostly part
+   */
+	atomic_t count;
+	bool resize_in_progress;
+	wait_queue_head_t resize_wait;
+
+	struct fdtable __rcu *fdt;
+	struct fdtable fdtab;
+  /*
+   * written part on a separate cache line in SMP
+   */
+	spinlock_t file_lock ____cacheline_aligned_in_smp;
+	unsigned int next_fd;
+	unsigned long close_on_exec_init[1];
+	unsigned long open_fds_init[1];
+	unsigned long full_fds_bits_init[1];
+	struct file __rcu * fd_array[NR_OPEN_DEFAULT];
+};
+\end{lstlisting}
+
+\begin{lstlisting}[language=c, caption={struct fdtable}]
+struct fdtable {
+	unsigned int max_fds;
+	struct file __rcu **fd;      /* current fd array */
+	unsigned long *close_on_exec;
+	unsigned long *open_fds;
+	unsigned long *full_fds_bits;
+	struct rcu_head rcu;
+};
+\end{lstlisting}
+
+\pagebreak
+
+\begin{lstlisting}[language=c, caption={struct file}]
+struct file {
+	union {
+		struct llist_node	f_llist;
+		struct rcu_head 	f_rcuhead;
+		unsigned int 		f_iocb_flags;
+	};
+	struct path		f_path;
+	struct inode		*f_inode;	/* cached value */
+	const struct file_operations	*f_op;
+
+	/*
+	 * Protects f_ep, f_flags.
+	 * Must not be taken from IRQ context.
+	 */
+	spinlock_t		f_lock;
+	atomic_long_t		f_count;
+	unsigned int 		f_flags;
+	fmode_t			f_mode;
+	struct mutex		f_pos_lock;
+	loff_t			f_pos;
+	struct fown_struct	f_owner;
+	const struct cred	*f_cred;
+	struct file_ra_state	f_ra;
+
+	u64			f_version;
+#ifdef CONFIG_SECURITY
+	void			*f_security;
+#endif
+	/* needed for tty driver, and maybe others */
+	void			*private_data;
+
+#ifdef CONFIG_EPOLL
+	/* Used by fs/eventpoll.c to link all the hooks to this file */
+	struct hlist_head	*f_ep;
+#endif /* #ifdef CONFIG_EPOLL */
+	struct address_space	*f_mapping;
+	errseq_t		f_wb_err;
+	errseq_t		f_sb_err; /* for syncfs */
+};
+\end{lstlisting}
+
+\begin{lstlisting}[language=c, caption={struct nameidata}]
+struct nameidata {
+	struct path	path;
+	struct qstr	last;
+	struct path	root;
+	struct inode	*inode; /* path.dentry.d_inode */
+	unsigned int	flags, state;
+	unsigned	seq, next_seq, m_seq, r_seq;
+	int		last_type;
+	unsigned	depth;
+	int		total_link_count;
+	struct saved {
+		struct path link;
+		struct delayed_call done;
+		const char *name;
+		unsigned seq;
+	} *stack, internal[EMBEDDED_LEVELS];
+	struct filename	*name;
+	struct nameidata *saved;
+	unsigned	root_seq;
+	int		dfd;
+	vfsuid_t	dir_vfsuid;
+	umode_t		dir_mode;
+};
+\end{lstlisting}
+
+\begin{lstlisting}[language=c, caption={struct path}]
+struct path {
+	struct vfsmount *mnt;
+	struct dentry *dentry;
+};
+\end{lstlisting}
+
+\begin{lstlisting}[language=c, caption={struct vfsmount}]
+struct vfsmount {
+	struct dentry *mnt_root;	/* root of the mounted tree */
+	struct super_block *mnt_sb;	/* pointer to superblock */
+	int mnt_flags;
+	struct mnt_idmap *mnt_idmap;
+};
+\end{lstlisting}
+
+\begin{lstlisting}[language=c, caption={struct dentry}]
+struct dentry {
+	/* RCU lookup touched fields */
+	unsigned int d_flags;		/* protected by d_lock */
+	seqcount_spinlock_t d_seq;	/* per dentry seqlock */
+	struct hlist_bl_node d_hash;	/* lookup hash list */
+	struct dentry *d_parent;	/* parent directory */
+	struct qstr d_name;
+	struct inode *d_inode;		/* Where the name belongs to - NULL is
+					 * negative */
+	unsigned char d_iname[DNAME_INLINE_LEN];	/* small names */
+
+	/* Ref lookup also touches following */
+	struct lockref d_lockref;	/* per-dentry lock and refcount */
+	const struct dentry_operations *d_op;
+	struct super_block *d_sb;	/* The root of the dentry tree */
+	unsigned long d_time;		/* used by d_revalidate */
+	void *d_fsdata;			/* fs-specific data */
+
+	union {
+		struct list_head d_lru;		/* LRU list */
+		wait_queue_head_t *d_wait;	/* in-lookup ones only */
+	};
+	struct list_head d_child;	/* child of parent list */
+	struct list_head d_subdirs;	/* our children */
+	/*
+	 * d_alias and d_rcu can share memory
+	 */
+	union {
+		struct hlist_node d_alias;	/* inode alias list */
+		struct hlist_bl_node d_in_lookup_hash;	/* only for in-lookup ones */
+	 	struct rcu_head d_rcu;
+	} d_u;
+}
+\end{lstlisting}
+
+\begin{lstlisting}[language=c, caption={struct inode\_operations}]
+struct inode_operations {
+	struct dentry * (*lookup) (struct inode *,struct dentry *, unsigned int);
+	const char * (*get_link) (struct dentry *, struct inode *, struct delayed_call *);
+	int (*permission) (struct mnt_idmap *, struct inode *, int);
+	struct posix_acl * (*get_inode_acl)(struct inode *, int, bool);
+
+	int (*readlink) (struct dentry *, char __user *,int);
+
+	int (*create) (struct mnt_idmap *, struct inode *,struct dentry *,
+		       umode_t, bool);
+	int (*link) (struct dentry *,struct inode *,struct dentry *);
+	int (*unlink) (struct inode *,struct dentry *);
+	int (*symlink) (struct mnt_idmap *, struct inode *,struct dentry *,
+			const char *);
+	int (*mkdir) (struct mnt_idmap *, struct inode *,struct dentry *,
+		      umode_t);
+	int (*rmdir) (struct inode *,struct dentry *);
+	int (*mknod) (struct mnt_idmap *, struct inode *,struct dentry *,
+		      umode_t,dev_t);
+	int (*rename) (struct mnt_idmap *, struct inode *, struct dentry *,
+			struct inode *, struct dentry *, unsigned int);
+	int (*setattr) (struct mnt_idmap *, struct dentry *, struct iattr *);
+	int (*getattr) (struct mnt_idmap *, const struct path *,
+			struct kstat *, u32, unsigned int);
+	ssize_t (*listxattr) (struct dentry *, char *, size_t);
+	int (*fiemap)(struct inode *, struct fiemap_extent_info *, u64 start,
+		      u64 len);
+	int (*update_time)(struct inode *, struct timespec64 *, int);
+	int (*atomic_open)(struct inode *, struct dentry *,
+			   struct file *, unsigned open_flag,
+			   umode_t create_mode);
+	int (*tmpfile) (struct mnt_idmap *, struct inode *,
+			struct file *, umode_t);
+	struct posix_acl *(*get_acl)(struct mnt_idmap *, struct dentry *,
+				     int);
+	int (*set_acl)(struct mnt_idmap *, struct dentry *,
+		       struct posix_acl *, int);
+	int (*fileattr_set)(struct mnt_idmap *idmap,
+			    struct dentry *dentry, struct fileattr *fa);
+	int (*fileattr_get)(struct dentry *dentry, struct fileattr *fa);
+}
+\end{lstlisting}
+
+\begin{lstlisting}[language=c, caption={struct dentry\_operations}]
+struct dentry_operations {
+	int (*d_revalidate)(struct dentry *, unsigned int);
+	int (*d_weak_revalidate)(struct dentry *, unsigned int);
+	int (*d_hash)(const struct dentry *, struct qstr *);
+	int (*d_compare)(const struct dentry *,
+			unsigned int, const char *, const struct qstr *);
+	int (*d_delete)(const struct dentry *);
+	int (*d_init)(struct dentry *);
+	void (*d_release)(struct dentry *);
+	void (*d_prune)(struct dentry *);
+	void (*d_iput)(struct dentry *, struct inode *);
+	char *(*d_dname)(struct dentry *, char *, int);
+	struct vfsmount *(*d_automount)(struct path *);
+	int (*d_manage)(const struct path *, bool);
+	struct dentry *(*d_real)(struct dentry *, const struct inode *);
+}
+\end{lstlisting}
+
+\leftsection{Схема алгоритма}
+
+\vspace*{\fill}
+\begin{figure}[h]
+    \centering
+    \def\svgwidth{0.8\textwidth}
+    \input{alg-open.pdf_tex}
+    \caption{Схема алгоритма функции open}
+\end{figure}
+\vfill
+
+\clearpage
+
+\vspace*{\fill}
+\begin{figure}[h]
+    \centering
+    \def\svgwidth{1\textwidth}
+    \input{alg-build_open_how.pdf_tex}
+    \caption{Схема алгоритма функции build\_open\_how}
+\end{figure}
+\vfill
+
+\clearpage
+
+\vspace*{\fill}
+\begin{figure}[h]
+    \centering
+    \def\svgwidth{1\textwidth}
+    \input{alg-do_sys_openat2.pdf_tex}
+    \caption{Схема алгоритма функции do\_sys\_openat2}
+\end{figure}
+\vfill
+
+\clearpage
+
+\vspace*{\fill}
+\begin{figure}[h]
+    \centering
+    \def\svgwidth{0.9\textwidth}
+    \input{alg-build_open_flags_1.pdf_tex}
+    \caption{Схема алгоритма функции build\_open\_flags (часть 1)}
+\end{figure}
+\vfill
+
+\clearpage
+
+\vspace*{\fill}
+\begin{figure}[h]
+    \centering
+    \def\svgwidth{0.8\textwidth}
+    \input{alg-build_open_flags_2.pdf_tex}
+    \caption{Схема алгоритма функции build\_open\_flags (часть 2)}
+\end{figure}
+\vfill
+
+\clearpage
+
+\vspace*{\fill}
+\begin{figure}[h]
+    \centering
+    \def\svgwidth{0.67\textwidth}
+    \input{alg-build_open_flags_3.pdf_tex}
+    \caption{Схема алгоритма функции build\_open\_flags (часть 3)}
+\end{figure}
+\vfill
+
+\clearpage
+
+\vspace*{\fill}
+\begin{figure}[h]
+    \centering
+    \def\svgwidth{0.45\textwidth}
+    \input{alg-build_open_flags_4.pdf_tex}
+    \caption{Схема алгоритма проверки полей структуры open\_how}
+\end{figure}
+\vfill
+
+\clearpage
+
+\vspace*{\fill}
+\begin{figure}[h]
+    \centering
+    \def\svgwidth{\textwidth}
+    \input{alg-getname_flags.pdf_tex}
+    \caption{Схема алгоритма функции getname\_flags}
+\end{figure}
+\vfill
+
+\clearpage
+
+\vspace*{\fill}
+\begin{figure}[h]
+    \centering
+    \def\svgwidth{0.7\textwidth}
+    \input{alg-alloc_fd_1.pdf_tex}
+    \caption{Схема алгоритма функции alloc\_fd (часть 1)}
+\end{figure}
+\vfill
+
+\clearpage
+
+\vspace*{\fill}
+\begin{figure}[h]
+    \centering
+    \def\svgwidth{0.7\textwidth}
+    \input{alg-alloc_fd_2.pdf_tex}
+    \caption{Схема алгоритма функции alloc\_fd (часть 2)}
+\end{figure}
+\vfill
+
+\clearpage
+
+\vspace*{\fill}
+\begin{figure}[h]
+    \centering
+    \def\svgwidth{0.9\textwidth}
+    \input{alg-do_filp_open.pdf_tex}
+    \caption{Схема алгоритма функции do\_filp\_open}
+\end{figure}
+\vfill
+
+\clearpage
+
+\vspace*{\fill}
+\begin{figure}[h]
+    \centering
+    \def\svgwidth{\textwidth}
+    \input{alg-set_nameidata.pdf_tex}
+    \caption{Схема алгоритма функции set\_nameidata}
+\end{figure}
+\vfill
+
+\clearpage
+
+\vspace*{\fill}
+\begin{figure}[h]
+    \centering
+    \def\svgwidth{\textwidth}
+    \input{alg-path_openat_1.pdf_tex}
+    \caption{Схема алгоритма функции path\_openat (часть 1)}
+\end{figure}
+\vfill
+
+\clearpage
+
+\vspace*{\fill}
+\begin{figure}[h]
+    \centering
+    \def\svgwidth{0.6\textwidth}
+    \input{alg-path_openat_2.pdf_tex}
+    \caption{Схема алгоритма функции path\_openat (часть 2)}
+\end{figure}
+\vfill
+\begin{figure}[h]
+    \centering
+    \def\svgwidth{0.85\textwidth}
+    \input{alg-alloc_empty_file.pdf_tex}
+    \caption{Схема алгоритма функции alloc\_empty\_file}
+\end{figure}
+\vfill
+
+\clearpage
+
+\vspace*{\fill}
+\begin{figure}[h]
+    \centering
+    \def\svgwidth{\textwidth}
+    \input{alg-__alloc_file.pdf_tex}
+    \caption{Схема алгоритма функции \_\_alloc\_file}
+\end{figure}
+\vfill
+
+\clearpage
+
+\vspace*{\fill}
+\begin{figure}[h]
+    \centering
+    \def\svgwidth{\textwidth}
+    \input{alg-open_last_lookups_1.pdf_tex}
+    \caption{Схема алгоритма функции open\_last\_lookups (часть 1)}
+\end{figure}
+\vfill
+
+\clearpage
+
+\vspace*{\fill}
+\begin{figure}[h]
+    \centering
+    \def\svgwidth{0.8\textwidth}
+    \input{alg-open_last_lookups_2.pdf_tex}
+    \caption{Схема алгоритма функции open\_last\_lookups (часть 2)}
+\end{figure}
+\vfill
+
+\clearpage
+
+\vspace*{\fill}
+\begin{figure}[h]
+    \centering
+    \def\svgwidth{\textwidth}
+    \input{alg-lookup_open_1.pdf_tex}
+    \caption{Схема алгоритма функции lookup\_open (часть 1)}
+\end{figure}
+\vfill
+
+\clearpage
+
+\vspace*{\fill}
+\begin{figure}[h]
+    \centering
+    \def\svgwidth{\textwidth}
+    \input{alg-lookup_open_2.pdf_tex}
+    \caption{Схема алгоритма функции lookup\_open (часть 2)}
+\end{figure}
+\vfill
+
+\clearpage
+
+\vspace*{\fill}
+\begin{figure}[h]
+    \centering
+    \def\svgwidth{\textwidth}
+    \input{alg-lookup_open_3.pdf_tex}
+    \caption{Схема алгоритма функции lookup\_open (часть 3)}
+\end{figure}
+\vfill
+
+\clearpage
+
+\vspace*{\fill}
+\begin{figure}[h]
+    \centering
+    \def\svgwidth{0.9\textwidth}
+    \input{alg-do_open_1.pdf_tex}
+    \caption{Схема алгоритма функции do\_open (часть 1)}
+\end{figure}
+\vfill
+
+\clearpage
+
+\vspace*{\fill}
+\begin{figure}[h]
+    \centering
+    \def\svgwidth{0.9\textwidth}
+    \input{alg-do_open_2.pdf_tex}
+    \caption{Схема алгоритма функции do\_open (часть 2)}
+\end{figure}
+\vfill

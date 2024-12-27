@@ -1,0 +1,55 @@
+/**
+ * vfs_tmpfile - create tmpfile
+ * @idmap:	idmap of the mount the inode was found from
+ * @parentpath:	pointer to the path of the base directory
+ * @file:	file descriptor of the new tmpfile
+ * @mode:	mode of the new tmpfile
+ *
+ * Create a temporary file.
+ *
+ * If the inode has been found through an idmapped mount the idmap of
+ * the vfsmount must be passed through @idmap. This function will then take
+ * care to map the inode according to @idmap before checking permissions.
+ * On non-idmapped mounts or if permission checking is to be performed on the
+ * raw inode simply passs @nop_mnt_idmap.
+ */
+static int vfs_tmpfile(struct mnt_idmap *idmap,
+		       const struct path *parentpath,
+		       struct file *file, umode_t mode)
+{
+	struct dentry *child;
+	struct inode *dir = d_inode(parentpath->dentry);
+	struct inode *inode;
+	int error;
+	int open_flag = file->f_flags;
+
+	/* we want directory to be writable */
+	error = inode_permission(idmap, dir, MAY_WRITE | MAY_EXEC);
+	if (error)
+		return error;
+	if (!dir->i_op->tmpfile)
+		return -EOPNOTSUPP;
+	child = d_alloc(parentpath->dentry, &slash_name);
+	if (unlikely(!child))
+		return -ENOMEM;
+	file->f_path.mnt = parentpath->mnt;
+	file->f_path.dentry = child;
+	mode = vfs_prepare_mode(idmap, dir, mode, mode, mode);
+	error = dir->i_op->tmpfile(idmap, dir, file, mode);
+	dput(child);
+	if (error)
+		return error;
+	/* Don't check for other permissions, the inode was just created */
+	error = may_open(idmap, &file->f_path, 0, file->f_flags);
+	if (error)
+		return error;
+	inode = file_inode(file);
+	if (!(open_flag & O_EXCL)) {
+		spin_lock(&inode->i_lock);
+		inode->i_state |= I_LINKABLE;
+		spin_unlock(&inode->i_lock);
+	}
+	ima_post_create_tmpfile(idmap, inode);
+	return 0;
+}
+

@@ -1,0 +1,20 @@
+/**
+ * security_file_alloc() - Allocate and init a file's LSM blob
+ * @file: the file
+ *
+ * Allocate and attach a security structure to the file->f_security field.  The
+ * security field is initialized to NULL when the structure is first created.
+ *
+ * Return: Return 0 if the hook is successful and permission is granted.
+ */
+int security_file_alloc(struct file *file)
+{
+	int rc = lsm_file_alloc(file);
+
+	if (rc)
+		return rc;
+	rc = call_int_hook(file_alloc_security, 0, file);
+	if (unlikely(rc))
+		security_file_free(file);
+	return rc;
+}

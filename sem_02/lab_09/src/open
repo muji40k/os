@@ -1,0 +1,22 @@
+static __attribute__((unused))
+int open(const char *path, int flags, ...)
+{
+	mode_t mode = 0;
+	int ret;
+
+	if (flags & O_CREAT) {
+		va_list args;
+
+		va_start(args, flags);
+		mode = va_arg(args, mode_t);
+		va_end(args);
+	}
+
+	ret = sys_open(path, flags, mode);
+
+	if (ret < 0) {
+		SET_ERRNO(-ret);
+		ret = -1;
+	}
+	return ret;
+}

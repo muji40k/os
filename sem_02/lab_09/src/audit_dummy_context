@@ -1,0 +1,5 @@
+static inline bool audit_dummy_context(void)
+{
+	void *p = audit_context();
+	return !p || *(int *)p;
+}
